@@ -8,8 +8,6 @@ on:
 
 jobs:
   notify:
-    # シークレット未設定ならジョブごとスキップ（CIを落とさない）
-    if: ${{ secrets.DISCORD_WEBHOOK != '' }}
     runs-on: ubuntu-latest
     env:
       REPO: ${{ github.repository }}
@@ -19,7 +17,7 @@ jobs:
 
     steps:
       - name: Prepare payload for PUSH
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'push' && secrets.DISCORD_WEBHOOK != '' }}
         shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -38,7 +36,6 @@ jobs:
 
           [ -z "$COMMITS_JSON" ] && COMMITS_JSON="(no commits?)"
 
-          # JSONを安全に一部エスケープする関数（ワンライナー。ヒアドキュメント不使用）
           esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
 
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -76,7 +73,7 @@ jobs:
             "$DISCORD_WEBHOOK"
 
       - name: Prepare payload for PR
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && secrets.DISCORD_WEBHOOK != '' }}
         shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -88,35 +85,32 @@ jobs:
           PR_NUMBER=$(jq -r '.number' <<< "$PR_JSON")
           PR_TITLE=$(jq -r '.title' <<< "$PR_JSON")
           PR_URL=$(jq -r '.html_url' <<< "$PR_JSON")
-          PR_STATE=$(jq -r '.state' <<< "$PR_JSON")  # open/closed
-          MERGED=$(jq -r '.merged' <<< "$PR_JSON")   # true/false
+          PR_STATE=$(jq -r '.state' <<< "$PR_JSON")
+          MERGED=$(jq -r '.merged' <<< "$PR_JSON")
           ADDITIONS=$(jq -r '.additions' <<< "$PR_JSON")
           DELETIONS=$(jq -r '.deletions' <<< "$PR_JSON")
           CHANGED_FILES=$(jq -r '.changed_files' <<< "$PR_JSON")
           REQUESTED_REVIEWERS=$(jq -r '[.requested_reviewers[].login] | join(", ") // ""' <<< "$PR_JSON")
           LABELS=$(jq -r '[.labels[].name] | join(", ") // ""' <<< "$PR_JSON")
 
-          # 色と絵文字
-          COLOR=3447003   # default blue
+          COLOR=3447003
           STATUS_EMOJI="🟦"
           case "$ACTION" in
-            opened|reopened|ready_for_review) COLOR=5763719; STATUS_EMOJI="🟩" ;; # green
-            synchronize)                      COLOR=3447003; STATUS_EMOJI="🟦" ;; # blue
+            opened|reopened|ready_for_review) COLOR=5763719; STATUS_EMOJI="🟩" ;;
+            synchronize)                      COLOR=3447003; STATUS_EMOJI="🟦" ;;
             closed)
               if [ "$MERGED" = "true" ]; then
-                COLOR=10181046; STATUS_EMOジ="🟪"  # purple
+                COLOR=10181046; STATUS_EMOJI="🟪"
               else
-                COLOR=15158332; STATUS_EMOJI="🟥"  # red
+                COLOR=15158332; STATUS_EMOJI="🟥"
               fi
               ;;
           esac
 
-          # 本文（先頭行のみ使用）
           BODY_FIRST=$(jq -r '.body // ""' <<< "$PR_JSON" | { IFS= read -r l; printf "%s" "$l"; })
 
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # JSONを安全に一部エスケープする関数
           esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
 
           read -r -d '' EMBEDS <<'JSON'
