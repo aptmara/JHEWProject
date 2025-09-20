@@ -1,9 +1,8 @@
 name: Notify Discord (push & PR detail)
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main         # 必要に応じて変更。全ブランチなら行ごと削除
   pull_request:
     types: [opened, closed, synchronize, reopened, ready_for_review]
 
