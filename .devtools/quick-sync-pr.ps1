@@ -1,4 +1,4 @@
-# quick-sync-pr.ps1 (auto re-add on pre-commit fixes)
+# quick-sync-pr.ps1 (auto re-add on pre-commit fixes + settings.ini sync)
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 Set-Location ..  # repo root
@@ -30,6 +30,44 @@ if ($LASTEXITCODE -ne 0) {
   if ($LASTEXITCODE -eq 0) { $basebr = 'master' }
 }
 
+# --- 設定同期: build/**/settings.ini (最新) -> repo root settings.ini ---
+function Sync-SettingsIni {
+  $buildRoot = Join-Path (Get-Location) "build"
+  if (-not (Test-Path $buildRoot)) {
+    Write-Host "[settings.ini] build ディレクトリ無し。同期スキップ。" -ForegroundColor Yellow
+    return
+  }
+  $candidates = Get-ChildItem -Path $buildRoot -Filter "settings.ini" -Recurse -File -ErrorAction SilentlyContinue
+  if (-not $candidates -or $candidates.Count -eq 0) {
+    Write-Host "[settings.ini] 見つからず。同期スキップ。" -ForegroundColor Yellow
+    return
+  }
+  $latest = $candidates | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  $dst = Join-Path (Get-Location) "settings.ini"
+
+  $needCopy = $true
+  if (Test-Path $dst) {
+    try {
+      $srcHash = (Get-FileHash -Algorithm SHA256 -Path $latest.FullName).Hash
+      $dstHash = (Get-FileHash -Algorithm SHA256 -Path $dst).Hash
+      $needCopy = ($srcHash -ne $dstHash)
+    } catch {
+      # 何かあってもコピーしておく
+      $needCopy = $true
+    }
+  }
+
+  if ($needCopy) {
+    Copy-Item -Path $latest.FullName -Destination $dst -Force
+    Write-Host "[settings.ini] Synced: $($latest.FullName) -> $dst" -ForegroundColor Cyan
+  } else {
+    Write-Host "[settings.ini] 同一のため同期不要。" -ForegroundColor DarkGray
+  }
+}
+
+# ここで同期（add の前）
+Sync-SettingsIni
+
 # --- メッセージ必須 ---
 $msg = Read-Host 'コミットメッセージ（必須）'
 if ([string]::IsNullOrWhiteSpace($msg)) { Fail 'commit' 'コミットメッセージが空です。' }
@@ -52,7 +90,6 @@ if (Get-Command pre-commit -ErrorAction SilentlyContinue) {
     $second = $LASTEXITCODE
 
     if ($second -ne 0) {
-      # まだ失敗 → 自動修正不能なエラー（lint/format以外など）
       $details = (& git status --porcelain) -join "`n"
       Fail 'pre-commit' "フック失敗（自動修正不可）。差分を直して再実行してください。`n$details"
     }
