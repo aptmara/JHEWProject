@@ -30,20 +30,55 @@ jobs:
           REF_NAME="${REF##refs/heads/}"
           COMPARE_URL="${{ github.event.compare }}"
           PUSHER_NAME="${{ github.event.pusher.name }}"
+
           COMMITS_JSON=$(jq -r '
             .commits[:10] | map(
               "- `\(.id[0:7])` \(.message | split("\n")[0]) (by \(.author.username // .author.name // "unknown"))"
             ) | join("\n")
           ' <<< '${{ toJson(github.event) }}')
-
           [ -z "$COMMITS_JSON" ] && COMMITS_JSON="(no commits?)"
 
           esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
+          trunc () { python3 - "$@" <<'PY'
+          import sys
+          s=sys.argv[1]
+          n=int(sys.argv[2])
+          # Discord Embed description は 4096 文字上限
+          print(s[:n])
+PY
+          }
+
+          post_json () {
+            local payload="$1"
+            local tmp_headers
+            tmp_headers="$(mktemp)"
+            # 1回目
+            local http_code
+            http_code=$(curl -sS -o /dev/null -w "%{http_code}" -D "$tmp_headers" \
+              -H "Content-Type: application/json" -X POST \
+              -d "$payload" \
+              "$DISCORD_WEBHOOK" || true)
+            # 429 の場合は Retry-After を見て1回だけ再試行
+            if [ "$http_code" = "429" ]; then
+              local retry_after
+              retry_after=$(awk -F': ' 'tolower($1)=="retry-after"{print $2}' "$tmp_headers" | tr -d '\r')
+              sleep "${retry_after:-2}"
+              http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                -H "Content-Type: application/json" -X POST \
+                -d "$payload" \
+                "$DISCORD_WEBHOOK" || true)
+            fi
+            if [ "${http_code:-000}" -ge 400 ]; then
+              echo "::warning title=Discord webhook failed::HTTP ${http_code}"
+            fi
+            rm -f "$tmp_headers"
+          }
 
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           STATUS_EMOJI="📌"
 
-          read -r -d '' EMBEDS <<'JSON'
+          # テンプレは heredoc→変数代入（read -d '' は使用しない）
+          EMBEDS=$(cat <<'JSON'
           [
             {
               "title": "%STATUS_EMOJI% Push — %REPO% (%BRANCH%)",
@@ -58,21 +93,24 @@ jobs:
             }
           ]
           JSON
+          )
 
           DESC="Latest commits to \`$REF_NAME\`:\n$COMMITS_JSON"
+          # 安全のため 4096 文字にトリム
+          DESC=$(trunc "$DESC" 4096)
 
-          EMBEDS=${EMBEDS//%STATUS_EMOJI%/$STATUS_EMOJI}
-          EMBEDS=${EMBEDS//%REPO%/$REPO}
-          EMBEDS=${EMBEDS//%BRANCH%/$REF_NAME}
-          EMBEDS=${EMBEDS//%COMPARE_URL%/$(echo "$COMPARE_URL")}
+          # すべて JSON エスケープして置換
+          EMBEDS=${EMBEDS//%STATUS_EMOJI%/$(esc "$STATUS_EMOJI")}
+          EMBEDS=${EMBEDS//%REPO%/$(esc "$REPO")}
+          EMBEDS=${EMBEDS//%BRANCH%/$(esc "$REF_NAME")}
+          EMBEDS=${EMBEDS//%COMPARE_URL%/$(esc "$COMPARE_URL")}
           EMBEDS=${EMBEDS//%DESC%/$(esc "$DESC")}
           EMBEDS=${EMBEDS//%PUSHER%/$(esc "$PUSHER_NAME")}
-          EMBEDS=${EMBEDS//%RUN_URL%/$GITHUB_RUN_URL}
-          EMBEDS=${EMBEDS//%NOW_ISO%/$NOW_ISO}
+          EMBEDS=${EMBEDS//%RUN_URL%/$(esc "$GITHUB_RUN_URL")}
+          EMBEDS=${EMBEDS//%NOW_ISO%/$(esc "$NOW_ISO")}
 
-          curl -fS -H "Content-Type: application/json" -X POST \
-            -d "{\"embeds\": $EMBEDS}" \
-            "$DISCORD_WEBHOOK"
+          # Discord 失敗でもジョブは fail させない（ワーニング化）
+          post_json "{\"embeds\": $EMBEDS}"
 
       - name: Prepare payload for PR
         if: ${{ github.event_name == 'pull_request' && env.DISCORD_WEBHOOK != '' }}
@@ -82,16 +120,51 @@ jobs:
 
           ACTION="${{ github.event.action }}"
           PR_JSON='${{ toJson(github.event.pull_request) }}'
+
           PR_NUMBER=$(jq -r '.number' <<< "$PR_JSON")
           PR_TITLE=$(jq -r '.title' <<< "$PR_JSON")
           PR_URL=$(jq -r '.html_url' <<< "$PR_JSON")
           PR_STATE=$(jq -r '.state' <<< "$PR_JSON")
+          PR_DRAFT=$(jq -r '.draft' <<< "$PR_JSON")
           MERGED=$(jq -r '.merged' <<< "$PR_JSON")
           ADDITIONS=$(jq -r '.additions' <<< "$PR_JSON")
           DELETIONS=$(jq -r '.deletions' <<< "$PR_JSON")
           CHANGED_FILES=$(jq -r '.changed_files' <<< "$PR_JSON")
           REQUESTED_REVIEWERS=$(jq -r '[.requested_reviewers[].login] | join(", ") // ""' <<< "$PR_JSON")
           LABELS=$(jq -r '[.labels[].name] | join(", ") // ""' <<< "$PR_JSON")
+
+          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
+          trunc () { python3 - "$@" <<'PY'
+          import sys
+          s=sys.argv[1]
+          n=int(sys.argv[2])
+          print(s[:n])
+PY
+          }
+
+          post_json () {
+            local payload="$1"
+            local tmp_headers
+            tmp_headers="$(mktemp)"
+            local http_code
+            http_code=$(curl -sS -o /dev/null -w "%{http_code}" -D "$tmp_headers" \
+              -H "Content-Type: application/json" -X POST \
+              -d "$payload" \
+              "$DISCORD_WEBHOOK" || true)
+            if [ "$http_code" = "429" ]; then
+              local retry_after
+              retry_after=$(awk -F': ' 'tolower($1)=="retry-after"{print $2}' "$tmp_headers" | tr -d '\r')
+              sleep "${retry_after:-2}"
+              http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                -H "Content-Type: application/json" -X POST \
+                -d "$payload" \
+                "$DISCORD_WEBHOOK" || true)
+            fi
+            if [ "${http_code:-000}" -ge 400 ]; then
+              echo "::warning title=Discord webhook failed::HTTP ${http_code}"
+            fi
+            rm -f "$tmp_headers"
+          }
 
           COLOR=3447003
           STATUS_EMOJI="🟦"
@@ -108,12 +181,9 @@ jobs:
           esac
 
           BODY_FIRST=$(jq -r '.body // ""' <<< "$PR_JSON" | { IFS= read -r l; printf "%s" "$l"; })
-
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
-
-          read -r -d '' EMBEDS <<'JSON'
+          EMBEDS=$(cat <<'JSON'
           [
             {
               "title": "%STATUS_EMOJI% PR %ACTION% — %REPO%",
@@ -123,35 +193,41 @@ jobs:
               "fields": [
                 {"name": "Changes", "value": "+%ADDITIONS% / -%DELETIONS%  (%CHANGED_FILES% files)", "inline": true},
                 {"name": "State", "value": "%PR_STATE%", "inline": true},
+                {"name": "Draft", "value": "%PR_DRAFT%", "inline": true},
                 {"name": "Merged", "value": "%MERGED%", "inline": true},
                 {"name": "Actor", "value": "%ACTOR%", "inline": true},
+                {"name": "Reviewers", "value": "%REQUESTED_REVIEWERS%", "inline": true},
+                {"name": "Labels", "value": "%LABELS%", "inline": true},
                 {"name": "Workflow", "value": "[Run Log](%RUN_URL%)", "inline": true}
               ],
               "timestamp": "%NOW_ISO%"
             }
           ]
           JSON
+          )
 
           DESC="[#${PR_NUMBER}] $(printf "%s" "$PR_TITLE")"
           if [ -n "$BODY_FIRST" ]; then
-            DESC="$DESC\n> $(printf "%s" "$BODY_FIRST")"
+            DESC="$DESC"$'\n'"'> '"$BODY_FIRST"
           fi
+          DESC=$(trunc "$DESC" 4096)
 
-          EMBEDS=${EMBEDS//%STATUS_EMOJI%/$STATUS_EMOJI}
-          EMBEDS=${EMBEDS//%ACTION%/$(echo "$ACTION")}
-          EMBEDS=${EMBEDS//%REPO%/$REPO}
-          EMBEDS=${EMBEDS//%PR_URL%/$(echo "$PR_URL")}
+          EMBEDS=${EMBEDS//%STATUS_EMOJI%/$(esc "$STATUS_EMOJI")}
+          EMBEDS=${EMBEDS//%ACTION%/$(esc "$ACTION")}
+          EMBEDS=${EMBEDS//%REPO%/$(esc "$REPO")}
+          EMBEDS=${EMBEDS//%PR_URL%/$(esc "$PR_URL")}
           EMBEDS=${EMBEDS//%DESC%/$(esc "$DESC")}
           EMBEDS=${EMBEDS//%COLOR%/$COLOR}
-          EMBEDS=${EMBEDS//%ADDITIONS%/$ADDITIONS}
-          EMBEDS=${EMBEDS//%DELETIONS%/$DELETIONS}
-          EMBEDS=${EMBEDS//%CHANGED_FILES%/$CHANGED_FILES}
-          EMBEDS=${EMBEDS//%PR_STATE%/$PR_STATE}
-          EMBEDS=${EMBEDS//%MERGED%/$MERGED}
-          EMBEDS=${EMBEDS//%ACTOR%/$ACTOR}
-          EMBEDS=${EMBEDS//%RUN_URL%/$GITHUB_RUN_URL}
-          EMBEDS=${EMBEDS//%NOW_ISO%/$NOW_ISO}
+          EMBEDS=${EMBEDS//%ADDITIONS%/$(esc "$ADDITIONS")}
+          EMBEDS=${EMBEDS//%DELETIONS%/$(esc "$DELETIONS")}
+          EMBEDS=${EMBEDS//%CHANGED_FILES%/$(esc "$CHANGED_FILES")}
+          EMBEDS=${EMBEDS//%PR_STATE%/$(esc "$PR_STATE")}
+          EMBEDS=${EMBEDS//%PR_DRAFT%/$(esc "$PR_DRAFT")}
+          EMBEDS=${EMBEDS//%MERGED%/$(esc "$MERGED")}
+          EMBEDS=${EMBEDS//%ACTOR%/$(esc "$ACTOR")}
+          EMBEDS=${EMBEDS//%REQUESTED_REVIEWERS%/$(esc "$REQUESTED_REVIEWERS")}
+          EMBEDS=${EMBEDS//%LABELS%/$(esc "$LABELS")}
+          EMBEDS=${EMBEDS//%RUN_URL%/$(esc "$GITHUB_RUN_URL")}
+          EMBEDS=${EMBEDS//%NOW_ISO%/$(esc "$NOW_ISO")}
 
-          curl -fS -H "Content-Type: application/json" -X POST \
-            -d "{\"embeds\": $EMBEDS}" \
-            "$DISCORD_WEBHOOK"
+          post_json "{\"embeds\": $EMBEDS}"
