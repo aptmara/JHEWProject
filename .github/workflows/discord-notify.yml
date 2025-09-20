@@ -3,6 +3,8 @@ name: Notify Discord (push & PR detail)
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
   pull_request:
     types: [opened, closed, synchronize, reopened, ready_for_review]
 
@@ -10,6 +12,8 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     env:
+      # secrets は式に使わず、env に流し込む
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       REPO: ${{ github.repository }}
       ACTOR: ${{ github.actor }}
       GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -17,10 +21,8 @@ jobs:
 
     steps:
       - name: Prepare payload for PUSH
-        if: ${{ github.event_name == 'push' && secrets.DISCORD_WEBHOOK != '' }}
+        if: ${{ github.event_name == 'push' && env.DISCORD_WEBHOOK != '' }}
         shell: bash
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           set -euo pipefail
 
@@ -73,10 +75,8 @@ jobs:
             "$DISCORD_WEBHOOK"
 
       - name: Prepare payload for PR
-        if: ${{ github.event_name == 'pull_request' && secrets.DISCORD_WEBHOOK != '' }}
+        if: ${{ github.event_name == 'pull_request' && env.DISCORD_WEBHOOK != '' }}
         shell: bash
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           set -euo pipefail
 
