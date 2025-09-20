@@ -8,56 +8,51 @@ on:
 
 jobs:
   notify:
+    # シークレット未設定ならジョブごとスキップ（CIを落とさない）
+    if: ${{ secrets.DISCORD_WEBHOOK != '' }}
     runs-on: ubuntu-latest
     env:
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}   # ← 必須：DiscordのWebhook URLをリポジトリSecretsに入れる
       REPO: ${{ github.repository }}
       ACTOR: ${{ github.actor }}
       GITHUB_EVENT_NAME: ${{ github.event_name }}
       GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    steps:
-      - name: Verify webhook is set
-        run: |
-          if [ -z "${DISCORD_WEBHOOK}" ]; then
-            echo "ERROR: secrets.DISCORD_WEBHOOK is not set." >&2
-            exit 1
-          fi
 
+    steps:
       - name: Prepare payload for PUSH
         if: ${{ github.event_name == 'push' }}
         shell: bash
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # 参照: https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+          set -euo pipefail
+
           REF="${{ github.ref }}"
           REF_NAME="${REF##refs/heads/}"
           COMPARE_URL="${{ github.event.compare }}"
           PUSHER_NAME="${{ github.event.pusher.name }}"
-          COMMIT_COUNT=$(jq '.commits | length' <<< '${{ toJson(github.event) }}')
-
-          # コミット一覧（上位10件まで）を整形
           COMMITS_JSON=$(jq -r '
             .commits[:10] | map(
-              ("> " + (.id[0:7]) + " — " + (.message | split("\n")[0]) + "  by " + .author.username)
+              "- `\(.id[0:7])` \(.message | split("\n")[0]) (by \(.author.username // .author.name // "unknown"))"
             ) | join("\n")
           ' <<< '${{ toJson(github.event) }}')
 
-          # 詳細が無いと空文字になるケースを防ぐ
-          if [ -z "$COMMITS_JSON" ]; then
-            COMMITS_JSON="> （差分なし）"
-          fi
+          [ -z "$COMMITS_JSON" ] && COMMITS_JSON="(no commits?)"
 
-          # Discord embed（色は青系）
+          # JSONを安全に一部エスケープする関数（ワンライナー。ヒアドキュメント不使用）
+          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
+
+          NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          STATUS_EMOJI="📌"
+
           read -r -d '' EMBEDS <<'JSON'
           [
             {
-              "title": "🟦 Push to %REF_NAME%",
+              "title": "%STATUS_EMOJI% Push — %REPO% (%BRANCH%)",
               "url": "%COMPARE_URL%",
-              "description": "**%REPO%** に %COMMIT_COUNT% 件のコミット\n\n%COMMITS_JSON%",
+              "description": "%DESC%",
               "color": 3447003,
               "fields": [
-                {"name": "Ref", "value": "%REF%", "inline": true},
-                {"name": "Pusher", "value": "%PUSHER_NAME%", "inline": true},
-                {"name": "Actor", "value": "%ACTOR%", "inline": true},
+                {"name": "Pusher", "value": "%PUSHER%", "inline": true},
                 {"name": "Workflow", "value": "[Run Log](%RUN_URL%)", "inline": true}
               ],
               "timestamp": "%NOW_ISO%"
@@ -65,75 +60,64 @@ jobs:
           ]
           JSON
 
-          NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          EMBEDS=${EMBEDS//%REF_NAME%/$REF_NAME}
-          EMBEDS=${EMBEDS//%COMPARE_URL%/$COMPARE_URL}
-          EMBEDS=${EMBEDS//%REPO%/${REPO}}
-          EMBEDS=${EMBEDS//%COMMIT_COUNT%/$COMMIT_COUNT}
-          EMBEDS=${EMBEDS//%COMMITS_JSON%/$(printf "%s" "$COMMITS_JSON" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read())[1:-1])')}
-          EMBEDS=${EMBEDS//%REF%/$REF}
-          EMBEDS=${EMBEDS//%PUSHER_NAME%/$PUSHER_NAME}
-          EMBEDS=${EMBEDS//%ACTOR%/$ACTOR}
+          DESC="Latest commits to \`$REF_NAME\`:\n$COMMITS_JSON"
+
+          EMBEDS=${EMBEDS//%STATUS_EMOJI%/$STATUS_EMOJI}
+          EMBEDS=${EMBEDS//%REPO%/$REPO}
+          EMBEDS=${EMBEDS//%BRANCH%/$REF_NAME}
+          EMBEDS=${EMBEDS//%COMPARE_URL%/$(echo "$COMPARE_URL")}
+          EMBEDS=${EMBEDS//%DESC%/$(esc "$DESC")}
+          EMBEDS=${EMBEDS//%PUSHER%/$(esc "$PUSHER_NAME")}
           EMBEDS=${EMBEDS//%RUN_URL%/$GITHUB_RUN_URL}
           EMBEDS=${EMBEDS//%NOW_ISO%/$NOW_ISO}
 
-          curl -sS -H "Content-Type: application/json" -X POST \
+          curl -fS -H "Content-Type: application/json" -X POST \
             -d "{\"embeds\": $EMBEDS}" \
             "$DISCORD_WEBHOOK"
 
       - name: Prepare payload for PR
         if: ${{ github.event_name == 'pull_request' }}
         shell: bash
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # 参照: https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request
+          set -euo pipefail
+
           ACTION="${{ github.event.action }}"
           PR_JSON='${{ toJson(github.event.pull_request) }}'
           PR_NUMBER=$(jq -r '.number' <<< "$PR_JSON")
           PR_TITLE=$(jq -r '.title' <<< "$PR_JSON")
           PR_URL=$(jq -r '.html_url' <<< "$PR_JSON")
-          PR_USER=$(jq -r '.user.login' <<< "$PR_JSON")
           PR_STATE=$(jq -r '.state' <<< "$PR_JSON")  # open/closed
           MERGED=$(jq -r '.merged' <<< "$PR_JSON")   # true/false
-          BASE_REF=$(jq -r '.base.ref' <<< "$PR_JSON")
-          HEAD_REF=$(jq -r '.head.ref' <<< "$PR_JSON")
           ADDITIONS=$(jq -r '.additions' <<< "$PR_JSON")
           DELETIONS=$(jq -r '.deletions' <<< "$PR_JSON")
           CHANGED_FILES=$(jq -r '.changed_files' <<< "$PR_JSON")
-          DRAFT=$(jq -r '.draft' <<< "$PR_JSON")
-
-          # レビュー関連（存在しない場合は空）
           REQUESTED_REVIEWERS=$(jq -r '[.requested_reviewers[].login] | join(", ") // ""' <<< "$PR_JSON")
           LABELS=$(jq -r '[.labels[].name] | join(", ") // ""' <<< "$PR_JSON")
 
-          # 表示用アクション名と色
-          # opened=緑, reopened=緑, ready_for_review=緑, synchronize=青, closed(merged)=紫, closed(not merged)=赤
+          # 色と絵文字
           COLOR=3447003   # default blue
           STATUS_EMOJI="🟦"
           case "$ACTION" in
-            opened|reopened|ready_for_review)
-              COLOR=5763719; STATUS_EMOJI="🟩" ;;   # green
-            synchronize)
-              COLOR=3447003; STATUS_EMOJI="🟦" ;;   # blue
+            opened|reopened|ready_for_review) COLOR=5763719; STATUS_EMOJI="🟩" ;; # green
+            synchronize)                      COLOR=3447003; STATUS_EMOJI="🟦" ;; # blue
             closed)
               if [ "$MERGED" = "true" ]; then
-                COLOR=10181046; STATUS_EMOJI="🟪"   # purple
+                COLOR=10181046; STATUS_EMOジ="🟪"  # purple
               else
-                COLOR=15158332; STATUS_EMOJI="🟥"   # red
+                COLOR=15158332; STATUS_EMOJI="🟥"  # red
               fi
               ;;
           esac
 
-          # 説明文（1行目にタイトル、その下にメタ）
-          DESC="**#${PR_NUMBER} ${PR_TITLE}**\nby ${PR_USER}\n\n\`$HEAD_REF\` → \`$BASE_REF\`"
-          if [ -n "$LABELS" ]; then
-            DESC="$DESC\nLabels: $LABELS"
-          fi
-          if [ -n "$REQUESTED_REVIEWERS" ]; then
-            DESC="$DESC\nReviewers: $REQUESTED_REVIEWERS"
-          fi
-          if [ "$DRAFT" = "true" ]; then
-            DESC="$DESC\n(Draft PR)"
-          fi
+          # 本文（先頭行のみ使用）
+          BODY_FIRST=$(jq -r '.body // ""' <<< "$PR_JSON" | { IFS= read -r l; printf "%s" "$l"; })
+
+          NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # JSONを安全に一部エスケープする関数
+          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
 
           read -r -d '' EMBEDS <<'JSON'
           [
@@ -154,9 +138,11 @@ jobs:
           ]
           JSON
 
-          NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          # 置換（必要箇所はJSONエスケープ）
-          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
+          DESC="[#${PR_NUMBER}] $(printf "%s" "$PR_TITLE")"
+          if [ -n "$BODY_FIRST" ]; then
+            DESC="$DESC\n> $(printf "%s" "$BODY_FIRST")"
+          fi
+
           EMBEDS=${EMBEDS//%STATUS_EMOJI%/$STATUS_EMOJI}
           EMBEDS=${EMBEDS//%ACTION%/$(echo "$ACTION")}
           EMBEDS=${EMBEDS//%REPO%/$REPO}
@@ -172,6 +158,6 @@ jobs:
           EMBEDS=${EMBEDS//%RUN_URL%/$GITHUB_RUN_URL}
           EMBEDS=${EMBEDS//%NOW_ISO%/$NOW_ISO}
 
-          curl -sS -H "Content-Type: application/json" -X POST \
+          curl -fS -H "Content-Type: application/json" -X POST \
             -d "{\"embeds\": $EMBEDS}" \
             "$DISCORD_WEBHOOK"
