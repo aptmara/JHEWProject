@@ -157,12 +157,7 @@ jobs:
 
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           # 置換（必要箇所はJSONエスケープ）
-          esc () { python3 - <<'PY' "$1"
-import json,sys
-print(json.dumps(sys.argv[1])[1:-1])
-PY
-          }
-
+          esc () { python3 -c 'import json,sys; print(json.dumps(sys.argv[1])[1:-1])' "$1"; }
           EMBEDS=${EMBEDS//%STATUS_EMOJI%/$STATUS_EMOJI}
           EMBEDS=${EMBEDS//%ACTION%/$(echo "$ACTION")}
           EMBEDS=${EMBEDS//%REPO%/$REPO}
