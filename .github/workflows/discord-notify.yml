@@ -1,26 +1,26 @@
-name: Notify Discord (push & PR detail)
+name: "Notify Discord (push & PR detail)"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - "main"
   pull_request:
-    types: [opened, closed, synchronize, reopened, ready_for_review]
+    types: ["opened", "closed", "synchronize", "reopened", "ready_for_review"]
 
 jobs:
   notify:
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
     env:
       # secrets は式に使わず、env に流し込む
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-      REPO: ${{ github.repository }}
-      ACTOR: ${{ github.actor }}
-      GITHUB_EVENT_NAME: ${{ github.event_name }}
-      GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      DISCORD_WEBHOOK: "${{ secrets.DISCORD_WEBHOOK }}"
+      REPO: "${{ github.repository }}"
+      ACTOR: "${{ github.actor }}"
+      GITHUB_EVENT_NAME: "${{ github.event_name }}"
+      GITHUB_RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
     steps:
-      - name: Prepare payload for PUSH
+      - name: "Prepare payload for PUSH"
         if: ${{ github.event_name == 'push' && env.DISCORD_WEBHOOK != '' }}
         shell: bash
         run: |
@@ -112,7 +112,7 @@ PY
           # Discord 失敗でもジョブは fail させない（ワーニング化）
           post_json "{\"embeds\": $EMBEDS}"
 
-      - name: Prepare payload for PR
+      - name: "Prepare payload for PR"
         if: ${{ github.event_name == 'pull_request' && env.DISCORD_WEBHOOK != '' }}
         shell: bash
         run: |
