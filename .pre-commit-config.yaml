@@ -3,8 +3,6 @@ repos:
     rev: v17.0.6
     hooks:
       - id: clang-format
-        # 対象ファイルを src/ と include/ に限定
         files: ^(src/|include/).*\.(c|cc|cpp|cxx|h|hpp)$
-        # 念のための除外（将来ディレクトリ追加時の保険）
         exclude: ^(vendor/|build/|out/|\.devtools/)
         args: [--style=file]
