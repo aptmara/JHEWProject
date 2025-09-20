@@ -148,13 +148,15 @@ $gitattributes = @"
 "@
 Write-File (Join-Path $repoRoot ".gitattributes") $gitattributes
 
+# pre-commit: src/ & include/ のみ対象、vendor/build/out/.devtools を除外
 $preCommit = @"
 repos:
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v17.0.6
     hooks:
       - id: clang-format
-        files: \.(c|cc|cpp|cxx|h|hpp)$
+        files: ^(src/|include/).*\.(c|cc|cpp|cxx|h|hpp)$
+        exclude: ^(vendor/|build/|out/|\.devtools/)
         args: [--style=file]
 "@
 Write-File (Join-Path $repoRoot ".pre-commit-config.yaml") $preCommit
@@ -214,10 +216,10 @@ exit 0
 Write-File $startWorkPath $startWork
 attrib +h "$startWorkPath" 2>$null | Out-Null
 
-# Quick Sync + PR（便利版：pre-commit 修正→自動再 add＆再チェック）
+# Quick Sync + PR（便利版：pre-commit 修正→自動再 add＆再チェック + settings.ini 同期）
 $quickSyncPath = Join-Path $hiddenDir "quick-sync-pr.ps1"
 $quickSync = @"
-# quick-sync-pr.ps1 (auto re-add on pre-commit fixes)
+# quick-sync-pr.ps1 (auto re-add on pre-commit fixes + settings.ini sync)
 `$ErrorActionPreference = 'Stop'
 Set-Location -Path `$PSScriptRoot
 Set-Location ..  # repo root
@@ -231,6 +233,7 @@ function Fail(`$stage, `$msg) {
   exit 1
 }
 
+# --- 基本チェック ---
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Fail 'git' 'Git が見つかりません。' }
 & git rev-parse --is-inside-work-tree *> `$null
 if (`$LASTEXITCODE -ne 0) { Fail 'repo' 'ここは Git リポジトリではありません。' }
@@ -248,24 +251,62 @@ if (`$LASTEXITCODE -ne 0) {
   if (`$LASTEXITCODE -eq 0) { `$basebr = 'master' }
 }
 
+# --- 設定同期: build/**/settings.ini (最新) -> repo root settings.ini ---
+function Sync-SettingsIni {
+  `$buildRoot = Join-Path (Get-Location) "build"
+  if (-not (Test-Path `$buildRoot)) {
+    Write-Host "[settings.ini] build ディレクトリ無し。同期スキップ。" -ForegroundColor Yellow
+    return
+  }
+  `$candidates = Get-ChildItem -Path `$buildRoot -Filter "settings.ini" -Recurse -File -ErrorAction SilentlyContinue
+  if (-not `$candidates -or `$candidates.Count -eq 0) {
+    Write-Host "[settings.ini] 見つからず。同期スキップ。" -ForegroundColor Yellow
+    return
+  }
+  `$latest = `$candidates | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  `$dst = Join-Path (Get-Location) "settings.ini"
+
+  `$needCopy = `$true
+  if (Test-Path `$dst) {
+    try {
+      `$srcHash = (Get-FileHash -Algorithm SHA256 -Path `$latest.FullName).Hash
+      `$dstHash = (Get-FileHash -Algorithm SHA256 -Path `$dst).Hash
+      `$needCopy = (`$srcHash -ne `$dstHash)
+    } catch { `$needCopy = `$true }
+  }
+
+  if (`$needCopy) {
+    Copy-Item -Path `$latest.FullName -Destination `$dst -Force
+    Write-Host "[settings.ini] Synced: `$(`$latest.FullName) -> `$dst" -ForegroundColor Cyan
+  } else {
+    Write-Host "[settings.ini] 同一のため同期不要。" -ForegroundColor DarkGray
+  }
+}
+
+# ここで同期（add の前）
+Sync-SettingsIni
+
+# --- メッセージ必須 ---
 `$msg = Read-Host 'コミットメッセージ（必須）'
 if ([string]::IsNullOrWhiteSpace(`$msg)) { Fail 'commit' 'コミットメッセージが空です。' }
 
 Write-Host "`n=== add ==="
 & git add -A; if (`$LASTEXITCODE -ne 0) { Fail 'add' 'git add に失敗' }
 
+# --- pre-commit（自動再 add & 再チェック付き）---
 if (Get-Command pre-commit -ErrorAction SilentlyContinue) {
   Write-Host "`n=== pre-commit (pass 1) ==="
   & pre-commit run --hook-stage commit -a
   `$first = `$LASTEXITCODE
 
   if (`$first -ne 0) {
-    Write-Warning 'pre-commit で修正あり or エラー。自動で再 add します。'
+    Write-Warning "pre-commit で修正あり or エラー。自動で再 add します。"
     & git add -A; if (`$LASTEXITCODE -ne 0) { Fail 'add' 'pre-commit 後の git add に失敗' }
 
     Write-Host "`n=== pre-commit (pass 2) ==="
     & pre-commit run --hook-stage commit -a
     `$second = `$LASTEXITCODE
+
     if (`$second -ne 0) {
       `$details = (& git status --porcelain) -join "`n"
       Fail 'pre-commit' "フック失敗（自動修正不可）。差分を直して再実行してください。`n`$details"
@@ -293,6 +334,7 @@ if (`$LASTEXITCODE -ne 0) {
   & git push; if (`$LASTEXITCODE -ne 0) { Fail 'push' 'git push に失敗' }
 }
 
+# --- PR ---
 `$ownerRepo = `$null
 if (`$origin -match 'github\.com[:/](?<own>[^/]+)/(?<repo>[^/]+?)(?:\.git)?$') { `$ownerRepo = "`$($Matches.own)/`$($Matches.repo)" }
 
