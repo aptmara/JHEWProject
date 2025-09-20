@@ -1,12 +1,13 @@
 #pragma once
-#include <windows.h>
+#include "Settings.h"
+
+#include <chrono>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
-#include <wrl.h>
 #include <vector>
-#include <chrono>
-#include "Settings.h"
+#include <windows.h>
+#include <wrl.h>
 
 /**
  * @file DxApp.h
@@ -109,29 +110,29 @@ private:
     float ElapsedSeconds();
 
 private:
-    Microsoft::WRL::ComPtr<ID3D11Device>           m_device;        // Direct3D デバイス
-    Microsoft::WRL::ComPtr<ID3D11DeviceContext>    m_context;       // 即時コンテキスト
-    Microsoft::WRL::ComPtr<IDXGISwapChain>         m_swapChain;     // スワップチェーン
-    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_rtv;           // レンダーターゲットビュー
+    Microsoft::WRL::ComPtr<ID3D11Device> m_device;         // Direct3D デバイス
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context; // 即時コンテキスト
+    Microsoft::WRL::ComPtr<IDXGISwapChain> m_swapChain;    // スワップチェーン
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_rtv;  // レンダーターゲットビュー
 
-    Microsoft::WRL::ComPtr<ID3D11Buffer>           m_vb;            // 三角形用頂点バッファ
-    Microsoft::WRL::ComPtr<ID3D11InputLayout>      m_inputLayout;   // 入力レイアウト
-    Microsoft::WRL::ComPtr<ID3D11VertexShader>     m_vs;            // 頂点シェーダー
-    Microsoft::WRL::ComPtr<ID3D11PixelShader>      m_ps;            // ピクセルシェーダー
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_vb;               // 三角形用頂点バッファ
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_inputLayout; // 入力レイアウト
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vs;         // 頂点シェーダー
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_ps;          // ピクセルシェーダー
 
-    Microsoft::WRL::ComPtr<ID3D11Buffer>           m_cb;            // シェーダー用定数バッファ
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_cb; // シェーダー用定数バッファ
 
-    UINT m_width  = 0;                                             // バックバッファ幅
-    UINT m_height = 0;                                             // バックバッファ高さ
+    UINT m_width = 0;  // バックバッファ幅
+    UINT m_height = 0; // バックバッファ高さ
 
-    Settings m_settings;                                           // 設定ファイル管理
-    std::chrono::steady_clock::time_point m_start{};                // 起動時刻
-    std::chrono::steady_clock::time_point m_lastCheck{};            // 設定ファイル最終確認時刻
-    int m_hotReloadIntervalMs = 500;                               // ホットリロード間隔 (ミリ秒)
+    Settings m_settings;                                 // 設定ファイル管理
+    std::chrono::steady_clock::time_point m_start{};     // 起動時刻
+    std::chrono::steady_clock::time_point m_lastCheck{}; // 設定ファイル最終確認時刻
+    int m_hotReloadIntervalMs = 500;                     // ホットリロード間隔 (ミリ秒)
 
-    int   m_vsync = 1;                                             // VSync 設定 (0/1)
-    float m_clear[4] {0.05f, 0.1f, 0.2f, 1.0f};                    // クリアカラー RGBA
-    float m_scale = 1.0f;                                          // 三角形スケール係数
-    float m_speed = 1.0f;                                          // 回転速度係数
-    float m_tint[3] {1.f, 1.f, 1.f};                               // 色調補正係数
+    int m_vsync = 1;                           // VSync 設定 (0/1)
+    float m_clear[4]{0.05f, 0.1f, 0.2f, 1.0f}; // クリアカラー RGBA
+    float m_scale = 1.0f;                      // 三角形スケール係数
+    float m_speed = 1.0f;                      // 回転速度係数
+    float m_tint[3]{1.f, 1.f, 1.f};            // 色調補正係数
 };

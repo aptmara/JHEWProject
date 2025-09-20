@@ -4,10 +4,11 @@
  * @author 山内陽
  */
 
-#include <windows.h>
 #include "DxApp.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h" // ハンドラ宣言用
+
+#include <windows.h>
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
@@ -30,8 +31,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     switch (msg)
     {
     case WM_SIZE:
-        if (app && wParam != SIZE_MINIMIZED) {
-            UINT width  = LOWORD(lParam);
+        if (app && wParam != SIZE_MINIMIZED)
+        {
+            UINT width = LOWORD(lParam);
             UINT height = HIWORD(lParam);
             app->OnResize(width, height);
         }
@@ -57,29 +59,28 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE unusedPrevInst, LPWSTR unusedCm
 {
     const wchar_t* kClassName = L"D3D11SampleWindowClass";
     WNDCLASSEX wc{};
-    wc.cbSize        = sizeof(wc);
-    wc.style         = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc   = WndProc;
-    wc.hInstance     = hInst;
-    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wc.cbSize = sizeof(wc);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.lpszClassName = kClassName;
 
-    if (!RegisterClassEx(&wc)) return -1;
+    if (!RegisterClassEx(&wc))
+        return -1;
 
-    RECT rc{ 0, 0, 1280, 720 };
+    RECT rc{0, 0, 1280, 720};
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    HWND hWnd = CreateWindowEx(
-        0, kClassName, L"D3D11 Sample - ImGui + INI Sync",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        rc.right - rc.left, rc.bottom - rc.top,
-        nullptr, nullptr, hInst, nullptr);
+    HWND hWnd = CreateWindowEx(0, kClassName, L"D3D11 Sample - ImGui + INI Sync", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
+                               CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, nullptr, nullptr, hInst, nullptr);
 
-    if (!hWnd) return -1;
+    if (!hWnd)
+        return -1;
 
     DxApp app;
-    if (!app.Init(hWnd, 1280, 720)) {
+    if (!app.Init(hWnd, 1280, 720))
+    {
         MessageBox(hWnd, L"Direct3D の初期化に失敗しました。", L"Error", MB_ICONERROR);
         return -1;
     }

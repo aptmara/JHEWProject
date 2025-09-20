@@ -5,10 +5,11 @@
  */
 
 #include "Settings.h"
-#include <fstream>
-#include <sstream>
+
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -16,10 +17,11 @@ using namespace std;
  * @brief 文字列の前後空白を取り除くヘルパー。
  * @param s 処理対象の文字列。
  */
-static inline void trim(string& s) {
-    auto issp = [](int ch){ return std::isspace(ch); };
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [&](char c){ return !issp((unsigned char)c); }));
-    s.erase(std::find_if(s.rbegin(), s.rend(), [&](char c){ return !issp((unsigned char)c); }).base(), s.end());
+static inline void trim(string& s)
+{
+    auto issp = [](int ch) { return std::isspace(ch); };
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [&](char c) { return !issp((unsigned char)c); }));
+    s.erase(std::find_if(s.rbegin(), s.rend(), [&](char c) { return !issp((unsigned char)c); }).base(), s.end());
 }
 
 /**
@@ -30,12 +32,16 @@ static inline void trim(string& s) {
 bool Settings::Load(const std::wstring& path)
 {
     m_path = path;
-    if (!std::filesystem::exists(path)) return false;
+    if (!std::filesystem::exists(path))
+        return false;
 
     std::ifstream ifs(path);
-    if (!ifs) return false;
-    std::stringstream buf; buf << ifs.rdbuf();
-    if (!Parse(buf.str())) return false;
+    if (!ifs)
+        return false;
+    std::stringstream buf;
+    buf << ifs.rdbuf();
+    if (!Parse(buf.str()))
+        return false;
 
     m_lastWriteTime = std::filesystem::last_write_time(path);
     return true;
@@ -47,13 +53,18 @@ bool Settings::Load(const std::wstring& path)
  */
 bool Settings::ReloadIfChanged()
 {
-    if (m_path.empty() || !std::filesystem::exists(m_path)) return false;
+    if (m_path.empty() || !std::filesystem::exists(m_path))
+        return false;
     auto now = std::filesystem::last_write_time(m_path);
-    if (now != m_lastWriteTime) {
+    if (now != m_lastWriteTime)
+    {
         std::ifstream ifs(m_path);
-        if (!ifs) return false;
-        std::stringstream buf; buf << ifs.rdbuf();
-        if (!Parse(buf.str())) return false;
+        if (!ifs)
+            return false;
+        std::stringstream buf;
+        buf << ifs.rdbuf();
+        if (!Parse(buf.str()))
+            return false;
         m_lastWriteTime = now;
         return true;
     }
@@ -74,24 +85,32 @@ bool Settings::Parse(const std::string& text)
 
     while (std::getline(iss, line))
     {
-        auto semi = line.find(';'); if (semi != std::string::npos) line.erase(semi);
-        auto hash = line.find('#'); if (hash != std::string::npos) line.erase(hash);
+        auto semi = line.find(';');
+        if (semi != std::string::npos)
+            line.erase(semi);
+        auto hash = line.find('#');
+        if (hash != std::string::npos)
+            line.erase(hash);
 
         trim(line);
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
 
-        if (line.front() == '[' && line.back() == ']') {
-            currentCat = line.substr(1, line.size()-2);
+        if (line.front() == '[' && line.back() == ']')
+        {
+            currentCat = line.substr(1, line.size() - 2);
             trim(currentCat);
             continue;
         }
 
         auto eq = line.find('=');
-        if (eq == std::string::npos) continue;
+        if (eq == std::string::npos)
+            continue;
 
         std::string key = line.substr(0, eq);
-        std::string val = line.substr(eq+1);
-        trim(key); trim(val);
+        std::string val = line.substr(eq + 1);
+        trim(key);
+        trim(val);
         m_data[currentCat][key] = val;
     }
     return true;
@@ -106,9 +125,11 @@ bool Settings::Parse(const std::string& text)
 std::optional<std::string> Settings::GetString(const std::string& cat, const std::string& key) const
 {
     auto itc = m_data.find(cat);
-    if (itc == m_data.end()) return std::nullopt;
+    if (itc == m_data.end())
+        return std::nullopt;
     auto itk = itc->second.find(key);
-    if (itk == itc->second.end()) return std::nullopt;
+    if (itk == itc->second.end())
+        return std::nullopt;
     return itk->second;
 }
 
@@ -122,8 +143,16 @@ std::optional<std::string> Settings::GetString(const std::string& cat, const std
 double Settings::GetDouble(const std::string& cat, const std::string& key, double def) const
 {
     auto s = GetString(cat, key);
-    if (!s) return def;
-    try { return std::stod(*s); } catch (...) { return def; }
+    if (!s)
+        return def;
+    try
+    {
+        return std::stod(*s);
+    }
+    catch (...)
+    {
+        return def;
+    }
 }
 
 /**
@@ -136,8 +165,16 @@ double Settings::GetDouble(const std::string& cat, const std::string& key, doubl
 int Settings::GetInt(const std::string& cat, const std::string& key, int def) const
 {
     auto s = GetString(cat, key);
-    if (!s) return def;
-    try { return std::stoi(*s); } catch (...) { return def; }
+    if (!s)
+        return def;
+    try
+    {
+        return std::stoi(*s);
+    }
+    catch (...)
+    {
+        return def;
+    }
 }
 
 /**
@@ -150,11 +187,14 @@ int Settings::GetInt(const std::string& cat, const std::string& key, int def) co
 bool Settings::GetBool(const std::string& cat, const std::string& key, bool def) const
 {
     auto s = GetString(cat, key);
-    if (!s) return def;
+    if (!s)
+        return def;
     std::string v = *s;
     std::transform(v.begin(), v.end(), v.begin(), ::tolower);
-    if (v=="1"||v=="true"||v=="on"||v=="yes") return true;
-    if (v=="0"||v=="false"||v=="off"||v=="no") return false;
+    if (v == "1" || v == "true" || v == "on" || v == "yes")
+        return true;
+    if (v == "0" || v == "false" || v == "off" || v == "no")
+        return false;
     return def;
 }
 
@@ -205,9 +245,11 @@ void Settings::SetBool(const std::string& cat, const std::string& key, bool v)
  */
 bool Settings::Save()
 {
-    if (m_path.empty()) return false;
+    if (m_path.empty())
+        return false;
     std::ofstream ofs(m_path, std::ios::trunc);
-    if (!ofs) return false;
+    if (!ofs)
+        return false;
 
     for (auto& [cat, kv] : m_data)
     {
@@ -219,7 +261,8 @@ bool Settings::Save()
     ofs.flush();
     ofs.close();
 
-    if (std::filesystem::exists(m_path)) {
+    if (std::filesystem::exists(m_path))
+    {
         m_lastWriteTime = std::filesystem::last_write_time(m_path);
     }
     return true;

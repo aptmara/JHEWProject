@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(D3D11Sample LANGUAGES CXX)
 
+
 if (NOT MSVC)
   message(FATAL_ERROR "This sample requires MSVC on Windows.")
 endif()
@@ -57,3 +58,9 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/settings.ini"
             "${CMAKE_CURRENT_BINARY_DIR}/settings.ini"
 )
+
+# --- MSVC で UTF-8 を強制（ターゲット毎） ---
+if (MSVC)
+  target_compile_options(D3D11Sample PRIVATE /utf-8 /permissive-)
+  add_definitions(-DUNICODE -D_UNICODE)  # ワイドAPIを確実化（既に定義済みなら無害）
+endif()

@@ -1,8 +1,8 @@
 #pragma once
-#include <string>
-#include <unordered_map>
 #include <filesystem>
 #include <optional>
+#include <string>
+#include <unordered_map>
 
 /**
  * @file Settings.h
@@ -13,7 +13,8 @@
 /**
  * @brief INI 形式の設定を読み込み・保存するクラス。
  */
-class Settings {
+class Settings
+{
 public:
     /**
      * @brief 設定ファイルを読み込む。
@@ -58,7 +59,7 @@ public:
      * @param def 見つからない場合の既定値。
      * @return 取得した値、または既定値。
      */
-    int    GetInt(const std::string& cat, const std::string& key, int def) const;
+    int GetInt(const std::string& cat, const std::string& key, int def) const;
 
     /**
      * @brief 真偽値を取得する。
@@ -67,7 +68,7 @@ public:
      * @param def 見つからない場合の既定値。
      * @return 取得した値、または既定値。
      */
-    bool   GetBool(const std::string& cat, const std::string& key, bool def) const;
+    bool GetBool(const std::string& cat, const std::string& key, bool def) const;
 
     /**
      * @brief 文字列値を設定する。
@@ -75,7 +76,7 @@ public:
      * @param key キー名。
      * @param v 設定する値。
      */
-    void   SetString(const std::string& cat, const std::string& key, const std::string& v);
+    void SetString(const std::string& cat, const std::string& key, const std::string& v);
 
     /**
      * @brief 倍精度浮動小数値を設定する。
@@ -83,7 +84,7 @@ public:
      * @param key キー名。
      * @param v 設定する値。
      */
-    void   SetDouble(const std::string& cat, const std::string& key, double v);
+    void SetDouble(const std::string& cat, const std::string& key, double v);
 
     /**
      * @brief 整数値を設定する。
@@ -91,7 +92,7 @@ public:
      * @param key キー名。
      * @param v 設定する値。
      */
-    void   SetInt(const std::string& cat, const std::string& key, int v);
+    void SetInt(const std::string& cat, const std::string& key, int v);
 
     /**
      * @brief 真偽値を設定する。
@@ -99,13 +100,16 @@ public:
      * @param key キー名。
      * @param v 設定する値。
      */
-    void   SetBool(const std::string& cat, const std::string& key, bool v);
+    void SetBool(const std::string& cat, const std::string& key, bool v);
 
     /**
      * @brief 現在参照しているパスを取得する。
      * @return 設定ファイルのパス。
      */
-    std::wstring Path() const { return m_path; }
+    std::wstring Path() const
+    {
+        return m_path;
+    }
 
 private:
     /**
@@ -116,7 +120,7 @@ private:
     bool Parse(const std::string& text);
 
     using KV = std::unordered_map<std::string, std::string>;
-    std::unordered_map<std::string, KV> m_data;      // カテゴリ別のキー・値テーブル
-    std::wstring m_path;                            // 設定ファイルのパス
+    std::unordered_map<std::string, KV> m_data;        // カテゴリ別のキー・値テーブル
+    std::wstring m_path;                               // 設定ファイルのパス
     std::filesystem::file_time_type m_lastWriteTime{}; // 最終更新時刻
 };

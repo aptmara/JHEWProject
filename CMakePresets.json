@@ -1,0 +1,55 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24
+  },
+  "configurePresets": [
+    {
+      "name": "vs2022-x64",
+      "displayName": "VS2022 x64",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/vs2022-x64",
+      "cacheVariables": {
+        "CMAKE_POLICY_DEFAULT_CMP0141": "NEW"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      }
+    },
+    {
+      "name": "ninja-msvc",
+      "displayName": "Ninja (MSVC)",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_POLICY_DEFAULT_CMP0141": "NEW"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vs2022-Debug",
+      "configurePreset": "vs2022-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "vs2022-Release",
+      "configurePreset": "vs2022-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "ninja-Debug",
+      "configurePreset": "ninja-msvc",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ninja-Release",
+      "configurePreset": "ninja-msvc",
+      "configuration": "Release"
+    }
+  ]
+}

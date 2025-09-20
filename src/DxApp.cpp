@@ -5,13 +5,14 @@
  */
 
 #include "DxApp.h"
-#include <cassert>
-#include <string>
-#include <cmath>
 
 #include "imgui.h"
-#include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
+
+#include <cassert>
+#include <cmath>
+#include <string>
 
 using Microsoft::WRL::ComPtr;
 
@@ -47,12 +48,7 @@ static void MakeZRotateScale(float* out16, float angle, float scale)
 {
     const float c = std::cos(angle) * scale;
     const float s = std::sin(angle) * scale;
-    float m[16] = {
-         c,  s, 0, 0,
-        -s,  c, 0, 0,
-         0,  0, 1, 0,
-         0,  0, 0, 1
-    };
+    float m[16] = {c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     std::copy(std::begin(m), std::end(m), out16);
 }
 
@@ -73,19 +69,24 @@ bool DxApp::Init(HWND hWnd, UINT width, UINT height)
     m_start = std::chrono::steady_clock::now();
     m_lastCheck = m_start;
 
-    if (!CreateDeviceAndSwapChain(hWnd, width, height)) return false;
-    if (!CreateRenderTarget()) return false;
-    if (!LoadShaders()) return false;
-    if (!CreateTriangleResources()) return false;
-    if (!CreateConstantBuffer()) return false;
+    if (!CreateDeviceAndSwapChain(hWnd, width, height))
+        return false;
+    if (!CreateRenderTarget())
+        return false;
+    if (!LoadShaders())
+        return false;
+    if (!CreateTriangleResources())
+        return false;
+    if (!CreateConstantBuffer())
+        return false;
 
     InitImGui(hWnd);
 
     D3D11_VIEWPORT vp{};
     vp.TopLeftX = 0.0f;
     vp.TopLeftY = 0.0f;
-    vp.Width    = static_cast<float>(m_width);
-    vp.Height   = static_cast<float>(m_height);
+    vp.Width = static_cast<float>(m_width);
+    vp.Height = static_cast<float>(m_height);
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports(1, &vp);
@@ -126,15 +127,15 @@ void DxApp::ShutdownImGui()
 bool DxApp::CreateDeviceAndSwapChain(HWND hWnd, UINT width, UINT height)
 {
     DXGI_SWAP_CHAIN_DESC sd{};
-    sd.BufferCount      = 2;
-    sd.BufferDesc.Format= DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow     = hWnd;
+    sd.BufferCount = 2;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hWnd;
     sd.SampleDesc.Count = 1;
-    sd.Windowed         = TRUE;
-    sd.SwapEffect       = DXGI_SWAP_EFFECT_DISCARD;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
     sd.BufferDesc.Width = width;
-    sd.BufferDesc.Height= height;
+    sd.BufferDesc.Height = height;
 
     UINT deviceFlags = 0;
 #if defined(_DEBUG)
@@ -142,21 +143,22 @@ bool DxApp::CreateDeviceAndSwapChain(HWND hWnd, UINT width, UINT height)
 #endif
 
     D3D_FEATURE_LEVEL req[] = {
-        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
+        D3D_FEATURE_LEVEL_11_1,
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
     };
     D3D_FEATURE_LEVEL got{};
 
-    HRESULT hr = D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, deviceFlags,
-        req, _countof(req), D3D11_SDK_VERSION,
-        &sd, m_swapChain.GetAddressOf(), m_device.GetAddressOf(), &got, m_context.GetAddressOf());
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, deviceFlags, req,
+                                               _countof(req), D3D11_SDK_VERSION, &sd, m_swapChain.GetAddressOf(),
+                                               m_device.GetAddressOf(), &got, m_context.GetAddressOf());
 
-    if (FAILED(hr)) {
-        hr = D3D11CreateDeviceAndSwapChain(
-            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, deviceFlags,
-            req, _countof(req), D3D11_SDK_VERSION,
-            &sd, m_swapChain.GetAddressOf(), m_device.GetAddressOf(), &got, m_context.GetAddressOf());
+    if (FAILED(hr))
+    {
+        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, deviceFlags, req, _countof(req),
+                                           D3D11_SDK_VERSION, &sd, m_swapChain.GetAddressOf(), m_device.GetAddressOf(),
+                                           &got, m_context.GetAddressOf());
     }
     return SUCCEEDED(hr);
 }
@@ -169,7 +171,8 @@ bool DxApp::CreateRenderTarget()
 {
     ComPtr<ID3D11Texture2D> backBuf;
     HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(backBuf.GetAddressOf()));
-    if (FAILED(hr)) return false;
+    if (FAILED(hr))
+        return false;
     hr = m_device->CreateRenderTargetView(backBuf.Get(), nullptr, m_rtv.GetAddressOf());
     return SUCCEEDED(hr);
 }
@@ -179,7 +182,8 @@ bool DxApp::CreateRenderTarget()
  */
 void DxApp::ReleaseRenderTarget()
 {
-    if (m_rtv) m_rtv.Reset();
+    if (m_rtv)
+        m_rtv.Reset();
 }
 
 /**
@@ -189,19 +193,26 @@ void DxApp::ReleaseRenderTarget()
  */
 void DxApp::OnResize(UINT width, UINT height)
 {
-    if (!m_swapChain) return;
-    m_width = width; m_height = height;
+    if (!m_swapChain)
+        return;
+    m_width = width;
+    m_height = height;
 
     m_context->OMSetRenderTargets(0, nullptr, nullptr);
     ReleaseRenderTarget();
 
-    if (FAILED(m_swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0))) return;
-    if (!CreateRenderTarget()) return;
+    if (FAILED(m_swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0)))
+        return;
+    if (!CreateRenderTarget())
+        return;
 
     D3D11_VIEWPORT vp{};
-    vp.TopLeftX = 0; vp.TopLeftY = 0;
-    vp.Width = (float)m_width; vp.Height = (float)m_height;
-    vp.MinDepth = 0; vp.MaxDepth = 1;
+    vp.TopLeftX = 0;
+    vp.TopLeftY = 0;
+    vp.Width = (float)m_width;
+    vp.Height = (float)m_height;
+    vp.MinDepth = 0;
+    vp.MaxDepth = 1;
     m_context->RSSetViewports(1, &vp);
 }
 
@@ -218,22 +229,35 @@ bool DxApp::LoadShaders()
 #endif
     ComPtr<ID3DBlob> vs, ps, err;
 
-    HRESULT hr = D3DCompileFromFile(shaderFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-        "VSMain", "vs_5_0", compileFlags, 0, vs.GetAddressOf(), err.GetAddressOf());
-    if (FAILED(hr)) { if (err) OutputDebugStringA((char*)err->GetBufferPointer()); return false; }
+    HRESULT hr = D3DCompileFromFile(shaderFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0",
+                                    compileFlags, 0, vs.GetAddressOf(), err.GetAddressOf());
+    if (FAILED(hr))
+    {
+        if (err)
+            OutputDebugStringA((char*)err->GetBufferPointer());
+        return false;
+    }
 
-    hr = D3DCompileFromFile(shaderFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-        "PSMain", "ps_5_0", compileFlags, 0, ps.GetAddressOf(), err.ReleaseAndGetAddressOf());
-    if (FAILED(hr)) { if (err) OutputDebugStringA((char*)err->GetBufferPointer()); return false; }
+    hr = D3DCompileFromFile(shaderFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0",
+                            compileFlags, 0, ps.GetAddressOf(), err.ReleaseAndGetAddressOf());
+    if (FAILED(hr))
+    {
+        if (err)
+            OutputDebugStringA((char*)err->GetBufferPointer());
+        return false;
+    }
 
-    if (FAILED(m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_vs.GetAddressOf()))) return false;
-    if (FAILED(m_device->CreatePixelShader (ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, m_ps.GetAddressOf()))) return false;
+    if (FAILED(m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_vs.GetAddressOf())))
+        return false;
+    if (FAILED(m_device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, m_ps.GetAddressOf())))
+        return false;
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex,pos), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex,col), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, pos), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, col), D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    return SUCCEEDED(m_device->CreateInputLayout(layout, _countof(layout), vs->GetBufferPointer(), vs->GetBufferSize(), m_inputLayout.GetAddressOf()));
+    return SUCCEEDED(m_device->CreateInputLayout(layout, _countof(layout), vs->GetBufferPointer(), vs->GetBufferSize(),
+                                                 m_inputLayout.GetAddressOf()));
 }
 
 /**
@@ -243,15 +267,15 @@ bool DxApp::LoadShaders()
 bool DxApp::CreateTriangleResources()
 {
     Vertex v[] = {
-        { {  0.0f,  0.5f, 0.0f }, { 1.f, 0.f, 0.f } },
-        { {  0.5f, -0.5f, 0.0f }, { 0.f, 1.f, 0.f } },
-        { { -0.5f, -0.5f, 0.0f }, { 0.f, 0.f, 1.f } },
+        {{0.0f, 0.5f, 0.0f}, {1.f, 0.f, 0.f}},
+        {{0.5f, -0.5f, 0.0f}, {0.f, 1.f, 0.f}},
+        {{-0.5f, -0.5f, 0.0f}, {0.f, 0.f, 1.f}},
     };
     D3D11_BUFFER_DESC bd{};
     bd.Usage = D3D11_USAGE_DEFAULT;
     bd.ByteWidth = sizeof(v);
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    D3D11_SUBRESOURCE_DATA init{ v };
+    D3D11_SUBRESOURCE_DATA init{v};
     return SUCCEEDED(m_device->CreateBuffer(&bd, &init, m_vb.GetAddressOf()));
 }
 
@@ -286,7 +310,8 @@ float DxApp::ElapsedSeconds()
  */
 void DxApp::UpdateFromSettings(bool onDemandReload)
 {
-    if (onDemandReload) m_settings.ReloadIfChanged();
+    if (onDemandReload)
+        m_settings.ReloadIfChanged();
 
     m_vsync = m_settings.GetBool("Render", "VSync", true) ? 1 : 0;
     m_hotReloadIntervalMs = m_settings.GetInt("Render", "HotReloadIntervalMs", 500);
@@ -314,24 +339,30 @@ void DxApp::DrawImGui()
 
     bool changed = false;
 
-    if (ImGui::Begin("Settings (INI <-> GUI)")) {
-        if (ImGui::CollapsingHeader("Render", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::Begin("Settings (INI <-> GUI)"))
+    {
+        if (ImGui::CollapsingHeader("Render", ImGuiTreeNodeFlags_DefaultOpen))
+        {
             bool vsync = m_vsync != 0;
-            if (ImGui::Checkbox("VSync", &vsync)) {
+            if (ImGui::Checkbox("VSync", &vsync))
+            {
                 m_vsync = vsync ? 1 : 0;
                 m_settings.SetBool("Render", "VSync", vsync);
                 changed = true;
             }
             int interval = m_hotReloadIntervalMs;
-            if (ImGui::SliderInt("HotReloadIntervalMs", &interval, 100, 2000)) {
+            if (ImGui::SliderInt("HotReloadIntervalMs", &interval, 100, 2000))
+            {
                 m_hotReloadIntervalMs = interval;
                 m_settings.SetInt("Render", "HotReloadIntervalMs", interval);
                 changed = true;
             }
         }
 
-        if (ImGui::CollapsingHeader("Clear", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::ColorEdit4("ClearColor", m_clear)) {
+        if (ImGui::CollapsingHeader("Clear", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (ImGui::ColorEdit4("ClearColor", m_clear))
+            {
                 m_settings.SetDouble("Clear", "R", m_clear[0]);
                 m_settings.SetDouble("Clear", "G", m_clear[1]);
                 m_settings.SetDouble("Clear", "B", m_clear[2]);
@@ -340,16 +371,20 @@ void DxApp::DrawImGui()
             }
         }
 
-        if (ImGui::CollapsingHeader("Triangle", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::SliderFloat("Scale", &m_scale, 0.1f, 5.0f)) {
+        if (ImGui::CollapsingHeader("Triangle", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (ImGui::SliderFloat("Scale", &m_scale, 0.1f, 5.0f))
+            {
                 m_settings.SetDouble("Triangle", "Scale", m_scale);
                 changed = true;
             }
-            if (ImGui::SliderFloat("RotationSpeed", &m_speed, -10.0f, 10.0f)) {
+            if (ImGui::SliderFloat("RotationSpeed", &m_speed, -10.0f, 10.0f))
+            {
                 m_settings.SetDouble("Triangle", "RotationSpeed", m_speed);
                 changed = true;
             }
-            if (ImGui::ColorEdit3("Tint", m_tint)) {
+            if (ImGui::ColorEdit3("Tint", m_tint))
+            {
                 m_settings.SetDouble("Triangle", "TintR", m_tint[0]);
                 m_settings.SetDouble("Triangle", "TintG", m_tint[1]);
                 m_settings.SetDouble("Triangle", "TintB", m_tint[2]);
@@ -358,11 +393,13 @@ void DxApp::DrawImGui()
         }
 
         ImGui::Separator();
-        if (ImGui::Button("Save to settings.ini")) {
+        if (ImGui::Button("Save to settings.ini"))
+        {
             changed = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reload from settings.ini")) {
+        if (ImGui::Button("Reload from settings.ini"))
+        {
             m_settings.Load(L"settings.ini");
             UpdateFromSettings(false);
         }
@@ -370,7 +407,8 @@ void DxApp::DrawImGui()
     }
     ImGui::End();
 
-    if (changed) {
+    if (changed)
+    {
         m_settings.Save();
     }
 
@@ -384,10 +422,11 @@ void DxApp::DrawImGui()
 void DxApp::Render()
 {
     auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastCheck).count() >= m_hotReloadIntervalMs
-        || (GetAsyncKeyState('R') & 1))
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastCheck).count() >= m_hotReloadIntervalMs ||
+        (GetAsyncKeyState('R') & 1))
     {
-        if (m_settings.ReloadIfChanged()) {
+        if (m_settings.ReloadIfChanged())
+        {
             UpdateFromSettings(false);
             OutputDebugStringW(L"[Settings] Reloaded settings.ini\n");
         }
@@ -398,25 +437,30 @@ void DxApp::Render()
     m_context->ClearRenderTargetView(m_rtv.Get(), m_clear);
 
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    if (SUCCEEDED(m_context->Map(m_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+    if (SUCCEEDED(m_context->Map(m_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
         auto* cb = reinterpret_cast<CBData*>(mapped.pData);
-        cb->Tint[0]=m_tint[0]; cb->Tint[1]=m_tint[1]; cb->Tint[2]=m_tint[2]; cb->Tint[3]=0;
-        cb->Screen[0]=(float)m_width; cb->Screen[1]=(float)m_height;
-        cb->Pad0[0]=cb->Pad0[1]=0;
+        cb->Tint[0] = m_tint[0];
+        cb->Tint[1] = m_tint[1];
+        cb->Tint[2] = m_tint[2];
+        cb->Tint[3] = 0;
+        cb->Screen[0] = (float)m_width;
+        cb->Screen[1] = (float)m_height;
+        cb->Pad0[0] = cb->Pad0[1] = 0;
         float angle = ElapsedSeconds() * m_speed;
         MakeZRotateScale(cb->Mvp, angle, m_scale);
         m_context->Unmap(m_cb.Get(), 0);
     }
 
     UINT stride = sizeof(Vertex), offset = 0;
-    ID3D11Buffer* bufs[] = { m_vb.Get() };
+    ID3D11Buffer* bufs[] = {m_vb.Get()};
     m_context->IASetVertexBuffers(0, 1, bufs, &stride, &offset);
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_context->IASetInputLayout(m_inputLayout.Get());
 
     m_context->VSSetShader(m_vs.Get(), nullptr, 0);
     m_context->PSSetShader(m_ps.Get(), nullptr, 0);
-    ID3D11Buffer* cbs[] = { m_cb.Get() };
+    ID3D11Buffer* cbs[] = {m_cb.Get()};
     m_context->VSSetConstantBuffers(0, 1, cbs);
     m_context->PSSetConstantBuffers(0, 1, cbs);
 
